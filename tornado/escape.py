@@ -46,11 +46,13 @@ def xhtml_escape(value):
     """Escapes a string so it is valid within XML or XHTML."""
     return utf8(xml.sax.saxutils.escape(value, {'"': "&quot;"}))
 
-
 def xhtml_unescape(value):
     """Un-escapes an XML-escaped string."""
     return re.sub(r"&(#?)(\w+?);", _convert_entity, _unicode(value))
 
+def attr_escape(data):
+    """Similar to xhtml_escape(), but also prepares data to be used as an attribute value."""
+    return utf8(xml.sax.saxutils.quoteattr(data))
 
 def json_encode(value):
     """JSON-encodes the given Python object."""

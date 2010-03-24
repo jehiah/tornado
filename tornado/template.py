@@ -116,6 +116,7 @@ class Template(object):
         """Generate this template with the given arguments."""
         namespace = {
             "escape": escape.xhtml_escape,
+            "attr_escape": escape.attr_escape,
             "url_escape": escape.url_escape,
             "json_encode": escape.json_encode,
             "squeeze": escape.squeeze,
