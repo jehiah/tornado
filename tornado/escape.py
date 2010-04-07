@@ -58,6 +58,11 @@ def json_encode(value):
     """JSON-encodes the given Python object."""
     return _json_encode(value)
 
+def script_safe(value):
+    """ Return a value safe for output into a html <script></script> tag
+    this would normaly be the output of json_encode()
+    """
+    return value.replace('</script','<script')
 
 def json_decode(value):
     """Returns Python objects for the given JSON string."""
