@@ -198,6 +198,27 @@ class RequestHandler(object):
         if strip: value = value.strip()
         return value
 
+    def get_arguments(self, name, default=[], strip=True):
+        """Returns the value of the arguments with the given name.
+
+        If default is not provided, the argument is considered to be
+        required, and we throw an HTTP 404 exception if it is missing.
+
+        The returned values are always unicode.
+        """
+        values = self.request.arguments.get(name, None)
+        if values is None:
+            if default is []:
+                raise HTTPError(404, "Missing argument %s" % name)
+            return default
+        # Get rid of any weird control chars
+        values = [re.sub(r"[\x00-\x08\x0e-\x1f]", " ", x) for x in values]
+        values = [_unicode(x) for x in values]
+        if strip:
+            values = [x.strip() for x in values]
+        return values
+
+
     @property
     def cookies(self):
         """A dictionary of Cookie.Morsel objects."""
