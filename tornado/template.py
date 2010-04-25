@@ -119,7 +119,7 @@ class Template(object):
             "attr_escape": escape.attr_escape,
             "url_escape": escape.url_escape,
             "json_encode": escape.json_encode,
-            "script_safe": escape.script_safe,
+            "script_escape": escape.script_escape,
             "squeeze": escape.squeeze,
             "datetime": datetime,
         }

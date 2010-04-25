@@ -58,11 +58,23 @@ def json_encode(value):
     """JSON-encodes the given Python object."""
     return _json_encode(value)
 
-def script_safe(value):
-    """ Return a value safe for output into a html <script></script> tag
-    this would normaly be the output of json_encode()
+def script_escape(value):
+    """Return a value safe for output into a html <script>...</script> block
+
+    This escape sequenece is valid for javascript interpreters, and
+    may not be valid for other types of script blocks (ie: vbscript)
+
+    input to this function is typically the output of json_encode().
+    
+    http://www.w3.org/TR/REC-html40/appendix/notes.html#notes-specifying-data
+    
+    Note: in a xhtml page where using PCDATA blocks for script content
+    you should use xhtml_escape instead.
     """
-    return value.replace('</script','<script')
+    if not value:
+        return value
+    return utf8(value).replace('</','<\/')
+
 
 def json_decode(value):
     """Returns Python objects for the given JSON string."""
