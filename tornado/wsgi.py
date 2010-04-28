@@ -148,6 +148,8 @@ class HTTPRequest(object):
             return self._finish_time - self._start_time
 
     def _parse_mime_body(self, boundary):
+        if boundary.startswith('"'):
+            boundary = boundary.strip('"')
         if self.body.endswith("\r\n"):
             footer_length = len(boundary) + 6
         else:
