@@ -125,8 +125,8 @@ class HTTPRequest(object):
         if content_type.startswith("application/x-www-form-urlencoded"):
             for name, values in cgi.parse_qs(self.body).iteritems():
                 self.arguments.setdefault(name, []).extend(values)
-        elif content_type.startswith("multipart/form-data"):
-            boundary = content_type[30:]
+        elif content_type.startswith("multipart/form-data") and '=' in content_type:
+            boundary = content_type.split('=',1)[1]
             if boundary: self._parse_mime_body(boundary)
 
         self._start_time = time.time()
@@ -148,6 +148,8 @@ class HTTPRequest(object):
             return self._finish_time - self._start_time
 
     def _parse_mime_body(self, boundary):
+        if boundary.startswith('"'):
+            boundary = boundary.strip('"')
         if self.body.endswith("\r\n"):
             footer_length = len(boundary) + 6
         else:
