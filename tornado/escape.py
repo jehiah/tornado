@@ -67,13 +67,12 @@ def script_escape(value):
     input to this function is typically the output of json_encode().
     
     http://www.w3.org/TR/REC-html40/appendix/notes.html#notes-specifying-data
+    http://code.google.com/p/gdata-java-client/source/browse/trunk/java/src/com/google/gdata/util/common/base/CharEscapers.java#774
     
     Note: in a xhtml page where using PCDATA blocks for script content
     you should use xhtml_escape instead.
     """
-    if not value:
-        return value
-    return utf8(value).replace('</','<\/')
+    return _unicode(value).replace('<','\\x3c').replace('>','\\x3e')
 
 
 def json_decode(value):
