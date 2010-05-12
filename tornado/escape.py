@@ -50,29 +50,15 @@ def xhtml_unescape(value):
     """Un-escapes an XML-escaped string."""
     return re.sub(r"&(#?)(\w+?);", _convert_entity, _unicode(value))
 
-def attr_escape(value):
-    """Similar to xhtml_escape(), but also prepares data to be used as an attribute value."""
-    return utf8(xml.sax.saxutils.escape(value, {'"': "&quot;", "'": "&#39;"}))
-
 def json_encode(value):
     """JSON-encodes the given Python object."""
-    return _json_encode(value)
-
-def script_escape(value):
-    """Return a value safe for output into a html <script>...</script> block
-
-    This escape sequenece is valid for javascript interpreters, and
-    may not be valid for other types of script blocks (ie: vbscript)
-
-    input to this function is typically the output of json_encode().
-    
-    http://www.w3.org/TR/REC-html40/appendix/notes.html#notes-specifying-data
-    http://code.google.com/p/gdata-java-client/source/browse/trunk/java/src/com/google/gdata/util/common/base/CharEscapers.java#774
-    
-    Note: in a xhtml page where using PCDATA blocks for script content
-    you should use xhtml_escape instead.
-    """
-    return _unicode(value).replace('<','\\x3c').replace('>','\\x3e')
+    # JSON permits but does not require forward slashes to be escaped.
+    # This is useful when json data is emitted in a <script> tag
+    # in HTML, as it prevents </script> tags from prematurely terminating
+    # the javscript.  Some json libraries do this escaping by default,
+    # although python's standard library does not, so we do it here.
+    # http://stackoverflow.com/questions/1580647/json-why-are-forward-slashes-escaped
+    return _json_encode(value).replace("</", "<\\/")
 
 
 def json_decode(value):
