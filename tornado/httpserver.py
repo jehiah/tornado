@@ -305,11 +305,16 @@ class HTTPConnection(object):
                         self._request.arguments.setdefault(name, []).extend(
                             values)
             elif content_type.startswith("multipart/form-data"):
-                boundary = content_type[30:]
-                if boundary: self._parse_mime_body(boundary, data)
+                if 'boundary=' in content_type:
+                    boundary = content_type.split('boundary=',1)[1]
+                    if boundary: self._parse_mime_body(boundary, data)
+                else:
+                    logging.warning("Invalid multipart/form-data")
         self.request_callback(self._request)
 
     def _parse_mime_body(self, boundary, data):
+        if boundary.startswith('"') and boundary.endswith('"'):
+            boundary = boundary[1:-1]
         if data.endswith("\r\n"):
             footer_length = len(boundary) + 6
         else:
