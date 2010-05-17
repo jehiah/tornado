@@ -185,18 +185,9 @@ class RequestHandler(object):
 
         The returned value is always unicode.
         """
-        values = self.request.arguments.get(name, None)
-        if values is None:
-            if default is self._ARG_DEFAULT:
-                raise HTTPError(404, "Missing argument %s" % name)
-            return default
-        # Get rid of any weird control chars
-        value = re.sub(r"[\x00-\x08\x0e-\x1f]", " ", values[-1])
-        value = _unicode(value)
-        if strip: value = value.strip()
-        return value
+        return self.get_arguments(name, default=default, strip=strip, return_one=True)
 
-    def get_arguments(self, name, default=[], strip=True):
+    def get_arguments(self, name, default=_ARG_DEFAULT, strip=True, return_one=False):
         """Returns the value of the arguments with the given name.
 
         If default is not provided, the argument is considered to be
@@ -206,7 +197,7 @@ class RequestHandler(object):
         """
         values = self.request.arguments.get(name, None)
         if values is None:
-            if default is []:
+            if default is self._ARG_DEFAULT:
                 raise HTTPError(404, "Missing argument %s" % name)
             return default
         # Get rid of any weird control chars
@@ -214,6 +205,8 @@ class RequestHandler(object):
         values = [_unicode(x) for x in values]
         if strip:
             values = [x.strip() for x in values]
+        if return_one:
+            return values[-1]
         return values
 
 
