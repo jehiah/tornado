@@ -132,6 +132,22 @@ class AsyncHTTPClient(object):
                                    instance._set_timeout)
             instance._multi.setopt(pycurl.M_SOCKETFUNCTION,
                                    instance._handle_socket)
+            
+            
+            if max_simultaneous_connections:
+                # set the max size of the CurlMulti connection pool
+                # if not set, it will grow dynamically to (n+1) * 4 the max number of simultaneous
+                # active connections. By default the pool size starts at 10 connections.
+                instance._multi.setopt(pycurl.M_MAXCONNECTS, max_simultaneous_connections)
+                
+                # patched version of curl and pycurl expose a way to directly update the number
+                # of connections allowed in the CurlMulti connection pool
+                try:
+                    instance._multi.setopt(pycurl.M_CONNECTION_POOL_SIZE, max_simultaneous_connections)
+                except:
+                    logging.warning("upgrade pycurl/libcurl to get pycurl.M_CONNECTION_POOL_SIZE")
+                    pass
+            
             instance._curls = [_curl_create(max_simultaneous_connections)
                                for i in xrange(max_clients)]
             instance._free_list = instance._curls[:]
