@@ -30,17 +30,18 @@ from io import BytesIO
 
 def read_stream_body(stream, callback):
     """Reads an HTTP response from `stream` and runs callback with its
-    headers and body."""
+    start_line, headers and body."""
     chunks = []
     class Delegate(HTTPMessageDelegate):
         def headers_received(self, start_line, headers):
             self.headers = headers
+            self.start_line = start_line
 
         def data_received(self, chunk):
             chunks.append(chunk)
 
         def finish(self):
-            callback((self.headers, b''.join(chunks)))
+            callback((self.start_line, self.headers, b''.join(chunks)))
     conn = HTTP1Connection(stream, True)
     conn.read_response(Delegate())
 
@@ -204,7 +205,7 @@ class HTTPConnectionTest(AsyncHTTPTestCase):
                              [utf8("Content-Length: %d" % len(body))]) +
                 newline + newline + body)
             read_stream_body(stream, self.stop)
-            headers, body = self.wait()
+            start_line, headers, body = self.wait()
             return body
 
     def test_multipart_form(self):
@@ -393,7 +394,15 @@ class HTTPServerRawTest(AsyncHTTPTestCase):
         self.io_loop.add_timeout(datetime.timedelta(seconds=0.001), self.stop)
         self.wait()
 
-    def test_malformed_first_line(self):
+    def test_malformed_first_line_response(self):
+        self.stream.write(b'asdf\r\n\r\n')
+        read_stream_body(self.stream, self.stop)
+        start_line, headers, response = self.wait()
+        self.assertEqual('HTTP/1.1', start_line.version)
+        self.assertEqual(400, start_line.code)
+        self.assertEqual('Bad Request', start_line.reason)
+
+    def test_malformed_first_line_log(self):
         with ExpectLog(gen_log, '.*Malformed HTTP request line'):
             self.stream.write(b'asdf\r\n\r\n')
             # TODO: need an async version of ExpectLog so we don't need
@@ -425,8 +434,39 @@ bar
 
 """.replace(b"\n", b"\r\n"))
         read_stream_body(self.stream, self.stop)
-        headers, response = self.wait()
-        self.assertEqual(json_decode(response), {u('foo'): [u('bar')]})
+        start_line, headers, response = self.wait()
+        self.assertEqual(json_decode(response), {u'foo': [u'bar']})
+
+    def test_chunked_request_uppercase(self):
+        # As per RFC 2616 section 3.6, "Transfer-Encoding" header's value is
+        # case-insensitive.
+        self.stream.write(b"""\
+POST /echo HTTP/1.1
+Transfer-Encoding: Chunked
+Content-Type: application/x-www-form-urlencoded
+
+4
+foo=
+3
+bar
+0
+
+""".replace(b"\n", b"\r\n"))
+        read_stream_body(self.stream, self.stop)
+        start_line, headers, response = self.wait()
+        self.assertEqual(json_decode(response), {u'foo': [u'bar']})
+
+    def test_invalid_content_length(self):
+        with ExpectLog(gen_log, '.*Only integer Content-Length is allowed'):
+            self.stream.write(b"""\
+POST /echo HTTP/1.1
+Content-Length: foo
+
+bar
+
+""".replace(b"\n", b"\r\n"))
+            self.stream.read_until_close(self.stop)
+            self.wait()
 
 
 class XHeaderTest(HandlerBaseTestCase):
@@ -576,7 +616,7 @@ class UnixSocketTest(AsyncTestCase):
             self.stream.write(b"garbage\r\n\r\n")
             self.stream.read_until_close(self.stop)
             response = self.wait()
-        self.assertEqual(response, b"")
+        self.assertEqual(response, b"HTTP/1.1 400 Bad Request\r\n\r\n")
 
 
 class KeepAliveTest(AsyncHTTPTestCase):
@@ -980,24 +1020,26 @@ class BodyLimitsTest(AsyncHTTPTestCase):
     def test_large_body_buffered(self):
         with ExpectLog(gen_log, '.*Content-Length too long'):
             response = self.fetch('/buffered', method='PUT', body=b'a' * 10240)
-        self.assertEqual(response.code, 599)
+        self.assertEqual(response.code, 400)
 
     def test_large_body_buffered_chunked(self):
         with ExpectLog(gen_log, '.*chunked body too large'):
             response = self.fetch('/buffered', method='PUT',
                                   body_producer=lambda write: write(b'a' * 10240))
-        self.assertEqual(response.code, 599)
+        # this test is flaky on windows; accept 400 (expected) or 599
+        self.assertIn(response.code, [400, 599])
 
     def test_large_body_streaming(self):
         with ExpectLog(gen_log, '.*Content-Length too long'):
             response = self.fetch('/streaming', method='PUT', body=b'a' * 10240)
-        self.assertEqual(response.code, 599)
+        self.assertEqual(response.code, 400)
 
     def test_large_body_streaming_chunked(self):
         with ExpectLog(gen_log, '.*chunked body too large'):
             response = self.fetch('/streaming', method='PUT',
                                   body_producer=lambda write: write(b'a' * 10240))
-        self.assertEqual(response.code, 599)
+        # this test is flaky on windows; accept 400 (expected) or 599
+        self.assertIn(response.code, [400, 599])
 
     def test_large_body_streaming_override(self):
         response = self.fetch('/streaming?expected_size=10240', method='PUT',
@@ -1034,14 +1076,14 @@ class BodyLimitsTest(AsyncHTTPTestCase):
             stream.write(b'PUT /streaming?expected_size=10240 HTTP/1.1\r\n'
                          b'Content-Length: 10240\r\n\r\n')
             stream.write(b'a' * 10240)
-            headers, response = yield gen.Task(read_stream_body, stream)
+            start_line, headers, response = yield gen.Task(read_stream_body, stream)
             self.assertEqual(response, b'10240')
             # Without the ?expected_size parameter, we get the old default value
             stream.write(b'PUT /streaming HTTP/1.1\r\n'
                          b'Content-Length: 10240\r\n\r\n')
             with ExpectLog(gen_log, '.*Content-Length too long'):
                 data = yield stream.read_until_close()
-            self.assertEqual(data, b'')
+            self.assertEqual(data, b'HTTP/1.1 400 Bad Request\r\n\r\n')
         finally:
             stream.close()
 
